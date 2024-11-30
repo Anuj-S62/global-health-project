@@ -1,0 +1,22 @@
+{
+    "prim_key": "Deceased person ID",
+    "hhid": "Household ID",
+    "stateid": "State ID",
+    "state": "State name",
+    "ssuid": "Ssuid",
+    "residence": "Place of residence",
+    "cv_stateweight": "CV_State weight",
+    "cv_indiaweight": "CV_India weight",
+    "cv018": "Any HH member died in last two years",
+    "cv018_number": "Number of deaths in last 2 years in household",
+    "cv021": "Relationship of deceased person to household head",
+    "cv022": "Age of deceased person",
+    "cv023": "Gender of deceased person",
+    "cv024": "Year of death",
+    "cv025": "Month of death",
+    "cv026a": "Main cause of death",
+    "cv026b": "Sub-cause of death",
+    "cv027": "Cause certified by medical professional",
+    "deathcounter": "Counter of death in the household",
+    "interview_date": "Date of interview (year and month)"
+}
