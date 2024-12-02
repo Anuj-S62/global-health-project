@@ -125,7 +125,7 @@ def combined_analysis(df_gender, gender_name, condition_col):
     plt.ylabel("Working Status (1 = Working, 2 = Not Working)")
     plt.show()
 
-# Perform Combined Analysis for Males and Females
+# # Perform Combined Analysis for Males and Females
 combined_analysis(df_male, "Males", "Ever diagnosed_diabetes")
 combined_analysis(df_female, "Females", "Ever diagnosed_diabetes")
 
@@ -143,6 +143,9 @@ def aggregate_state_data(df_gender, condition_col):
 
 male_diabetes = aggregate_state_data(df_male, "Ever diagnosed_diabetes")
 female_diabetes = aggregate_state_data(df_female, "Ever diagnosed_diabetes")
+
+male_hypertension = aggregate_state_data(df_male, "Ever diagnosed_hypertension")
+female_hypertension = aggregate_state_data(df_female, "Ever diagnosed_hypertension")
 
 # Load India Shapefile
 india_map = gpd.read_file("/Users/anujsolanki/global-health/india-polygon.shp")
@@ -177,6 +180,10 @@ def merge_with_map(india_map, data, col_name):
 # Merge data
 india_male = merge_with_map(india_map, male_diabetes, "Male Diabetes")
 india_female = merge_with_map(india_map, female_diabetes, "Female Diabetes")
+
+india_male_hypertension = merge_with_map(india_map,male_hypertension, "Male Hypertension")
+india_female_hypertension = merge_with_map(india_map,female_hypertension, "Female Hypertension")
+
 
 # Plot Heatmap with improved visualization
 def plot_heatmap(india_data, title):
@@ -222,6 +229,221 @@ def plot_heatmap(india_data, title):
     plt.tight_layout()
     plt.show()
 
-# Plot heatmaps
-plot_heatmap(india_male, "Male Diabetes Prevalence by State")
-plot_heatmap(india_female, "Female Diabetes Prevalence by State")
+# Updated Heatmap Function
+def plot_heatmap_with_percentage(india_data, title):
+    fig, ax = plt.subplots(1, 1, figsize=(15, 10))
+    
+    # Create a custom colormap with white for zero values
+    cmap = cm.YlOrRd
+    cmap.set_under('white')  # Color for values below the minimum
+    
+    # Normalize the color scale
+    norm = colors.Normalize(vmin=india_data['Prevalence'].min() * 100, vmax=india_data['Prevalence'].max() * 100)
+    
+    # Convert prevalence to percentage for plotting
+    india_data['Prevalence'] = india_data['Prevalence'] * 100
+    
+    # Plot the map
+    india_data.plot(
+        column="Prevalence",
+        cmap=cmap,
+        norm=norm,
+        linewidth=0.8,
+        edgecolor='0.8',
+        ax=ax,
+        legend=True,
+        legend_kwds={
+            'label': 'Diabetes Prevalence (%)',
+            'orientation': 'horizontal'
+        },
+        missing_kwds={
+            'color': 'lightgrey'  # Color for missing data
+        }
+    )
+    
+    # Add state labels with percentage values
+    for idx, row in india_data.iterrows():
+        plt.annotate(
+            text=f"{row['st_nm']}\n{row['Prevalence']:.0f}%", 
+            xy=(row.geometry.centroid.x, row.geometry.centroid.y),
+            ha='center', 
+            va='center',
+            fontsize=6
+        )
+    
+    ax.set_title(title, fontdict={'fontsize': 16}, loc="center")
+    plt.axis('off')
+    plt.tight_layout()
+    plt.show()
+
+
+
+# Plot heatmaps with updated function
+plot_heatmap_with_percentage(india_male, "Male Diabetes Prevalence by State (%)")
+plot_heatmap_with_percentage(india_female, "Female Diabetes Prevalence by State (%)")
+
+# Plot Heatmaps for Hypertension
+plot_heatmap_with_percentage(india_male_hypertension,"Male Hypertension Prevalence by State (%)")
+plot_heatmap_with_percentage(india_female_hypertension,"Female Hypertension Prevalence by State (%)")
+
+
+
+# Calculate Female/Male Diabetes Ratio
+diabetes_ratio = female_diabetes.copy()
+diabetes_ratio["Prevalence"] = ((diabetes_ratio["Prevalence"]/male_diabetes["Prevalence"])).replace(0, np.nan)
+# Merge and Plot Female/Male Diabetes Ratio
+india_ratio = merge_with_map(india_map, diabetes_ratio, "Female/Male Diabetes Ratio")
+plot_heatmap(india_ratio, "Female/Male Diabetes Ratio by State")
+
+
+# Calculate Female/Male Hypertension Ratio
+hypertension_ratio = female_hypertension.copy()
+hypertension_ratio["Prevalence"] = ((hypertension_ratio["Prevalence"]/male_hypertension["Prevalence"])).replace(0, np.nan)
+# Merge and Plot female/male hypertension Ratio
+india_ratio_hyp = merge_with_map(india_map, hypertension_ratio, "Female/Male Hypertension Ratio")
+plot_heatmap(india_ratio_hyp,"Female/Male Hypertension Ratio by State")  
+
+# Calculate Working Diabetes Ratio
+working_diabetes_ratio = (
+    df.groupby(["Sex of the respondent", "Working"])["Ever diagnosed_diabetes"]
+    .mean()
+    .unstack("Sex of the respondent")
+    .rename(columns={1: "Male", 2: "Female"})
+)
+working_diabetes_ratio["Female/Male Ratio"] = (
+    working_diabetes_ratio["Female"] / working_diabetes_ratio["Male"]
+)
+
+# Plot Working Diabetes Ratio
+working_diabetes_ratio[["Male", "Female"]].plot(
+    kind="bar", figsize=(8, 6), color=["blue", "pink"], edgecolor="black"
+)
+plt.title("Diabetes Prevalence by Working Status")
+plt.ylabel("Prevalence")
+plt.xlabel("Working Status (1 = Working, 2 = Not Working)")
+plt.xticks(rotation=0)
+plt.legend(title="Gender")
+plt.show()
+
+working_diabetes_ratio["Female/Male Ratio"].plot(
+    kind="bar", figsize=(8, 6), color="purple", edgecolor="black"
+)
+plt.title("Female/Male Diabetes Ratio by Working Status")
+plt.ylabel("Ratio")
+plt.xlabel("Working Status (1 = Working, 2 = Not Working)")
+plt.xticks(rotation=0)
+plt.show()
+
+
+# Define Age Ranges
+age_bins = range(40, 91, 10)
+age_labels = [f"{x}-{x+10}" for x in age_bins[:-1]]
+df["Age Range"] = pd.cut(df["Age at last birthday"], bins=age_bins, labels=age_labels)
+
+# Calculate Diabetes Prevalence by Age Range
+age_diabetes = (
+    df.groupby(["Age Range", "Sex of the respondent"])["Ever diagnosed_diabetes"]
+    .mean()
+    .unstack("Sex of the respondent")
+    .rename(columns={1: "Male", 2: "Female"})
+)
+age_diabetes["Female/Male Ratio"] = (
+    age_diabetes["Female"] / age_diabetes["Male"]
+)
+
+# Plot Diabetes Prevalence by Age Range
+age_diabetes[["Male", "Female"]].plot(
+    kind="bar", figsize=(10, 6), color=["blue", "pink"], edgecolor="black"
+)
+plt.title("Diabetes Prevalence by Age Range")
+plt.ylabel("Prevalence")
+plt.xlabel("Age Range")
+plt.xticks(rotation=45)
+plt.legend(title="Gender")
+plt.show()
+
+# Plot Female/Male Ratio by Age Range
+age_diabetes["Female/Male Ratio"].plot(
+    kind="bar", figsize=(10, 6), color="purple", edgecolor="black"
+)
+plt.title("Female/Male Diabetes Ratio by Age Range")
+plt.ylabel("Ratio")
+plt.xlabel("Age Range")
+plt.xticks(rotation=45)
+plt.show()
+
+
+
+
+
+
+# Calculate Hypertension Prevalence by Age Range
+
+# Calculate Working Diabetes Ratio
+working_hypertension_ratio = (
+    df.groupby(["Sex of the respondent", "Working"])["Ever diagnosed_hypertension"]
+    .mean()
+    .unstack("Sex of the respondent")
+    .rename(columns={1: "Male", 2: "Female"})
+)
+working_hypertension_ratio["Female/Male Ratio"] = (
+    working_hypertension_ratio["Female"] / working_hypertension_ratio["Male"]
+)
+
+# Plot Working Diabetes Ratio
+working_hypertension_ratio[["Male", "Female"]].plot(
+    kind="bar", figsize=(8, 6), color=["blue", "pink"], edgecolor="black"
+)
+plt.title("Hypertension Prevalence by Working Status")
+plt.ylabel("Prevalence")
+plt.xlabel("Working Status (1 = Working, 2 = Not Working)")
+plt.xticks(rotation=0)
+plt.legend(title="Gender")
+plt.show()
+
+working_hypertension_ratio["Female/Male Ratio"].plot(
+    kind="bar", figsize=(8, 6), color="purple", edgecolor="black"
+)
+plt.title("Female/Male Hypertension Ratio by Working Status")
+plt.ylabel("Ratio")
+plt.xlabel("Working Status (1 = Working, 2 = Not Working)")
+plt.xticks(rotation=0)
+plt.show()
+
+
+# Define Age Ranges
+age_bins = range(40, 91, 10)
+age_labels = [f"{x}-{x+10}" for x in age_bins[:-1]]
+df["Age Range"] = pd.cut(df["Age at last birthday"], bins=age_bins, labels=age_labels)
+
+# Calculate Hypertension Prevalence by Age Range
+age_hypertension = (
+    df.groupby(["Age Range", "Sex of the respondent"])["Ever diagnosed_diabetes"]
+    .mean()
+    .unstack("Sex of the respondent")
+    .rename(columns={1: "Male", 2: "Female"})
+)
+age_hypertension["Female/Male Ratio"] = (
+    age_hypertension["Female"] / age_hypertension["Male"]
+)
+
+# Plot Hypertension Prevalence by Age Range
+age_hypertension[["Male", "Female"]].plot(
+    kind="bar", figsize=(10, 6), color=["blue", "pink"], edgecolor="black"
+)
+plt.title("Hypertension Prevalence by Age Range")
+plt.ylabel("Prevalence")
+plt.xlabel("Age Range")
+plt.xticks(rotation=45)
+plt.legend(title="Gender")
+plt.show()
+
+# Plot Female/Male Ratio by Age Range
+age_hypertension["Female/Male Ratio"].plot(
+    kind="bar", figsize=(10, 6), color="purple", edgecolor="black"
+)
+plt.title("Female/Male Hypertension Ratio by Age Range")
+plt.ylabel("Ratio")
+plt.xlabel("Age Range")
+plt.xticks(rotation=45)
+plt.show()
